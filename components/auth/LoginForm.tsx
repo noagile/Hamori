@@ -1,0 +1,210 @@
+import React, { useState } from 'react';
+import { View, TextInput, StyleSheet, Text, TouchableOpacity, Pressable } from 'react-native';
+import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+
+const LoginForm = () => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+
+  const handleLogin = () => {
+    // ログイン処理を実装
+    console.log('ログイン処理', { email, password });
+    // 成功したらタブ画面に遷移
+    router.replace('/(tabs)');
+  };
+
+  const handleGuestLogin = () => {
+    // ゲストとしてログイン（タブ画面に遷移）
+    router.replace('/(tabs)');
+  };
+
+  const navigateToRegister = () => {
+    router.push('/auth/register');
+  };
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.titleContainer}>
+        <Text style={styles.title}>Hamori</Text>
+        <Text style={styles.subtitle}>飲食店探しをより楽しく簡単に。</Text>
+      </View>
+
+      <Text style={styles.formTitle}>ログイン</Text>
+
+      <View style={styles.inputContainer}>
+        <TextInput
+          style={styles.input}
+          placeholder="ユーザーIDもしくはメールアドレス"
+          value={email}
+          onChangeText={setEmail}
+          autoCapitalize="none"
+          placeholderTextColor="#999"
+        />
+      </View>
+
+      <View style={styles.inputContainer}>
+        <TextInput
+          style={styles.input}
+          placeholder="パスワード（半角英数字8文字以上）"
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry={!showPassword}
+          placeholderTextColor="#999"
+        />
+        <Pressable
+          style={styles.eyeIcon}
+          onPress={() => setShowPassword(!showPassword)}
+        >
+          <Ionicons
+            name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+            size={24}
+            color="#999"
+          />
+        </Pressable>
+      </View>
+
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity style={styles.button} onPress={handleLogin}>
+          <Text style={styles.buttonText}>ログイン</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.dividerContainer}>
+        <View style={styles.divider} />
+        <Text style={styles.dividerText}>もしくは</Text>
+        <View style={styles.divider} />
+      </View>
+
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity style={styles.guestButton} onPress={handleGuestLogin}>
+          <Text style={styles.guestButtonText}>ゲストとして始める</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.footer}>
+        <Text style={styles.footerText}>アカウントをお持ちでない方は</Text>
+        <TouchableOpacity onPress={navigateToRegister}>
+          <Text style={styles.footerLink}>こちら</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    padding: 24,
+    backgroundColor: '#fff',
+  },
+  titleContainer: {
+    alignItems: 'center',
+    marginBottom: 40,
+  },
+  title: {
+    fontSize: 42,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#666',
+    marginTop: 8,
+  },
+  formTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 30,
+    textAlign: 'center',
+  },
+  inputContainer: {
+    marginBottom: 20,
+    position: 'relative',
+  },
+  input: {
+    borderWidth: 0,
+    borderRadius: 12,
+    padding: 16,
+    backgroundColor: '#f5f5f7',
+    fontSize: 16,
+    color: '#333',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  eyeIcon: {
+    position: 'absolute',
+    right: 15,
+    top: '50%',
+    transform: [{ translateY: -12 }],
+  },
+  buttonContainer: {
+    alignItems: 'center',
+  },
+  button: {
+    backgroundColor: '#6c5ce7',
+    borderRadius: 50,
+    padding: 16,
+    alignItems: 'center',
+    marginTop: 16,
+    shadowColor: '#6c5ce7',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 3,
+    width: '80%',
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 30,
+  },
+  divider: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#e0e0e0',
+  },
+  dividerText: {
+    color: '#999',
+    paddingHorizontal: 16,
+  },
+  guestButton: {
+    backgroundColor: '#f0f0f0',
+    borderRadius: 50,
+    padding: 16,
+    alignItems: 'center',
+    width: '80%',
+  },
+  guestButtonText: {
+    color: '#666',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: 40,
+  },
+  footerText: {
+    color: '#666',
+    fontSize: 14,
+  },
+  footerLink: {
+    color: '#6c5ce7',
+    marginLeft: 5,
+    textDecorationLine: 'underline',
+    fontWeight: '500',
+    fontSize: 14,
+  },
+});
+
+export default LoginForm; 
