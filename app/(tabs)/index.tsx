@@ -1,5 +1,5 @@
 import React, { useContext } from 'react';
-import { StyleSheet, View, Text, SafeAreaView, Dimensions, TouchableWithoutFeedback } from 'react-native';
+import { StyleSheet, View, Text, SafeAreaView, Dimensions, TouchableWithoutFeedback, Image, Pressable } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -12,11 +12,33 @@ const { width, height } = Dimensions.get('window');
 const BOTTOM_MARGIN = height > 700 ? 100 : 80;
 
 export default function HomeScreen() {
-  const { setVoiceInputVisible } = useContext(AppContext);
+  const { 
+    setModeSelectorVisible, 
+    activeGroupInfo, 
+    setActiveGroupInfo, 
+    setActiveGroupId,
+    activeGroupId,
+    setAppMode
+  } = useContext(AppContext);
 
-  // 音声入力モーダルを開くハンドラー
-  const handleVoiceInputOpen = () => {
-    setVoiceInputVisible(true);
+  // 長押し時にモード選択画面を表示する
+  const handleLongPress = () => {
+    setModeSelectorVisible(true);
+  };
+
+  // グループ表示を閉じる
+  const handleCloseGroupDisplay = () => {
+    setActiveGroupInfo(null);
+    setActiveGroupId(null);
+  };
+  
+  // グループをタップして準備モーダルを開く
+  const handleGroupPress = () => {
+    if (activeGroupId && activeGroupInfo) {
+      // ホーム画面のアクティブなグループがタップされた場合、
+      // そのグループで準備モーダルを開く
+      setAppMode('group_ready');
+    }
   };
 
   return (
@@ -34,9 +56,58 @@ export default function HomeScreen() {
         </View>
       </View>
       
+      {/* アクティブなグループがあれば表示 */}
+      {activeGroupInfo && (
+        <View style={styles.activeGroupContainer}>
+          <Pressable 
+            style={({pressed}) => [
+              styles.activeGroupContent,
+              {
+                backgroundColor: pressed 
+                  ? `${activeGroupInfo.color}15` 
+                  : `${activeGroupInfo.color}10`,
+                borderColor: pressed 
+                  ? `${activeGroupInfo.color}30` 
+                  : `${activeGroupInfo.color}20`,
+              }
+            ]}
+            onPress={handleGroupPress}
+            android_ripple={{ color: `${activeGroupInfo.color}20` }}
+          >
+            <LinearGradient
+              colors={[`${activeGroupInfo.color}dd`, activeGroupInfo.color]}
+              style={styles.groupIconCircle}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <Image 
+                source={{ uri: activeGroupInfo.image }} 
+                style={styles.groupIcon} 
+              />
+            </LinearGradient>
+            <View style={styles.groupInfoText}>
+              <Text style={styles.groupName}>{activeGroupInfo.name}</Text>
+              <Text style={styles.groupMembers}>
+                <Ionicons name="people" size={12} color="#666" /> {activeGroupInfo.members}人と一緒にハモる
+              </Text>
+            </View>
+            <Pressable 
+              style={({pressed}) => [
+                styles.closeGroupButton,
+                pressed && { opacity: 0.7 }
+              ]}
+              onPress={handleCloseGroupDisplay}
+              hitSlop={8}
+            >
+              <Ionicons name="close-circle" size={22} color="#999" />
+            </Pressable>
+          </Pressable>
+        </View>
+      )}
+      
       {/* 紫色の全画面長押しエリア（ヘッダーと下部ナビゲーションを除く） */}
       <TouchableWithoutFeedback
-        onLongPress={handleVoiceInputOpen}
+        onLongPress={handleLongPress}
         delayLongPress={500} // 500ms長押しでモーダル表示
       >
         <View style={styles.touchableArea}>
@@ -109,6 +180,63 @@ const styles = StyleSheet.create({
     flex: 1,
     width: '100%',
     height: '100%',
+  },
+  // アクティブなグループ表示用スタイル
+  activeGroupContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  activeGroupContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    position: 'relative',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  groupIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  groupIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.8)',
+  },
+  groupInfoText: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  groupName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 2,
+  },
+  groupMembers: {
+    fontSize: 13,
+    color: '#666',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  closeGroupButton: {
+    padding: 6,
   },
   // 未来感を演出する要素
   futuristicCircle: {

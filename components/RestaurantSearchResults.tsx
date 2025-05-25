@@ -12,6 +12,14 @@ const OPENAI_API_KEY = Constants.expoConfig?.extra?.openaiApiKey;
 // ChatGPT APIのベースURL
 const CHATGPT_API_URL = 'https://api.openai.com/v1/chat/completions';
 
+// モックのグループデータ（実際の実装では親コンポーネントからpropsで渡すか、APIから取得）
+const mockGroups = {
+  'g1': { name: '会社の仲間', members: 5, color: '#6c5ce7', image: 'https://randomuser.me/api/portraits/groups/1.jpg' },
+  'g2': { name: '大学の友達', members: 4, color: '#0984e3', image: 'https://randomuser.me/api/portraits/groups/2.jpg' },
+  'g3': { name: '家族', members: 3, color: '#00b894', image: 'https://randomuser.me/api/portraits/groups/3.jpg' },
+  'g4': { name: 'サークル', members: 8, color: '#fdcb6e', image: 'https://randomuser.me/api/portraits/groups/4.jpg' },
+};
+
 // レストラン検索結果の型定義
 interface Restaurant {
   id: string;
@@ -64,9 +72,10 @@ const mockData = {
 interface RestaurantSearchResultsProps {
   tags: string[];
   onClose?: () => void;
+  groupId?: string | null;
 }
 
-const RestaurantSearchResults: React.FC<RestaurantSearchResultsProps> = ({ tags, onClose }) => {
+const RestaurantSearchResults: React.FC<RestaurantSearchResultsProps> = ({ tags, onClose, groupId }) => {
   const [loading, setLoading] = useState(false);
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [bestRestaurant, setBestRestaurant] = useState<Restaurant | null>(null);
@@ -74,6 +83,9 @@ const RestaurantSearchResults: React.FC<RestaurantSearchResultsProps> = ({ tags,
   const [optimizedKeyword, setOptimizedKeyword] = useState<string>('');
   const [optimizingQuery, setOptimizingQuery] = useState(false);
   const [showAllResults, setShowAllResults] = useState(false);
+
+  // 選択されているグループ情報を取得
+  const selectedGroup = groupId && mockGroups[groupId] ? mockGroups[groupId] : null;
 
   // GPTを使用してタグから最適な検索クエリを生成する
   const optimizeSearchQuery = async (inputTags: string[]): Promise<string> => {
@@ -86,16 +98,26 @@ const RestaurantSearchResults: React.FC<RestaurantSearchResultsProps> = ({ tags,
       setOptimizingQuery(true);
       console.log('GPTを使用して検索クエリを最適化します...');
       
+      // グループ情報を含めたプロンプト作成
+      let promptContent = "あなたはGoogle Mapsで日本の飲食店を検索するための専門家です。ユーザーから提供されたタグを基に、日本のGoogle Maps検索で最も良い結果が得られる検索クエリを作成してください。";
+      
+      // グループモードの場合はプロンプトに情報を追加
+      if (selectedGroup) {
+        promptContent += `ユーザーは「${selectedGroup.name}」というグループ（${selectedGroup.members}人）で飲食店を探しています。グループでの食事に適した検索クエリを考慮してください。`;
+      }
+      
+      promptContent += "店舗タイプや料理ジャンル、特徴的な要素を含む、簡潔で効果的な日本語の検索キーワードを返してください。例えば「和食 鍋料理 個室」のように、空白で区切られた3-5個のキーワードが理想的です。検索クエリのみを返してください。";
+      
       const prompt = {
         model: "gpt-4",  // gpt-4よりコスト効率の良いモデルを使用
         messages: [
           {
             role: "system",
-            content: "あなたはGoogle Mapsで日本の飲食店を検索するための専門家です。ユーザーから提供されたタグを基に、日本のGoogle Maps検索で最も良い結果が得られる検索クエリを作成してください。店舗タイプや料理ジャンル、特徴的な要素を含む、簡潔で効果的な日本語の検索キーワードを返してください。例えば「和食 鍋料理 個室」のように、空白で区切られた3-5個のキーワードが理想的です。検索クエリのみを返してください。"
+            content: promptContent
           },
           {
             role: "user",
-            content: `以下のタグから、日本のGoogle Maps検索で飲食店を効果的に見つけるための最適な検索クエリを作成してください。タグをそのまま使用してもいいのですが、そのまま使用しても検索にヒットしなそうな場合はタグを上位概念で捉えて簡潔なクエリを作成して：${inputTags.join(', ')}`
+            content: `以下のタグから、日本のGoogle Maps検索で飲食店を効果的に見つけるための最適な検索クエリを作成してください。${selectedGroup ? `「${selectedGroup.name}」（${selectedGroup.members}人）のグループに適した店舗を検索します。` : ''}タグをそのまま使用してもいいのですが、そのまま使用しても検索にヒットしなそうな場合はタグを上位概念で捉えて簡潔なクエリを作成して：${inputTags.join(', ')}`
           }
         ]
       };
@@ -455,9 +477,27 @@ const RestaurantSearchResults: React.FC<RestaurantSearchResultsProps> = ({ tags,
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>おすすめのレストラン</Text>
+        
+        {/* グループ情報表示 */}
+        {selectedGroup && (
+          <View style={[styles.groupInfoBanner, {backgroundColor: `${selectedGroup.color}22`}]}>
+            <Image 
+              source={{ uri: selectedGroup.image }}
+              style={[styles.groupIconImage, {borderColor: selectedGroup.color}]}
+            />
+            <Text style={styles.groupInfoText}>
+              <Text style={styles.groupNameInBanner}>{selectedGroup.name}</Text>
+              <Text style={styles.groupMembersText}> ({selectedGroup.members}人) で探しています</Text>
+            </Text>
+          </View>
+        )}
+        
         <View style={styles.tagsContainer}>
           {tags.map((tag, index) => (
-            <View key={`tag-${index}`} style={styles.tag}>
+            <View key={`tag-${index}`} style={[
+              styles.tag,
+              selectedGroup ? {backgroundColor: selectedGroup.color} : null 
+            ]}>
               <Text style={styles.tagText}>{tag}</Text>
             </View>
           ))}
@@ -824,6 +864,34 @@ const styles = StyleSheet.create({
   },
   arrowIcon: {
     alignSelf: 'center',
+  },
+  groupInfoBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 8,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  groupIconImage: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+    marginRight: 8,
+  },
+  groupInfoText: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+  },
+  groupNameInBanner: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  groupMembersText: {
+    fontSize: 12,
+    color: '#666',
   },
 });
 

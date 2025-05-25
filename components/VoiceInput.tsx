@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useContext } from 'react';
-import { View, Text, StyleSheet, Animated, Easing, Pressable, TextInput, ActivityIndicator, Platform, Alert, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Animated, Easing, Pressable, TextInput, ActivityIndicator, Platform, Alert, ScrollView, Image } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -13,6 +13,8 @@ interface VoiceInputProps {
   isVisible: boolean;
   onClose: () => void;
   onSubmit?: (text: string, tags?: string[]) => void;
+  // 選択されたグループID（nullの場合は個人モード）
+  groupId?: string | null;
 }
 
 interface Tag {
@@ -29,7 +31,15 @@ const OPENAI_API_KEY = Constants.expoConfig?.extra?.openaiApiKey;
 // ストレージキー (環境変数が設定されていない場合のフォールバック用)
 const API_KEY_STORAGE_KEY = 'openai_api_key';
 
-const VoiceInput: React.FC<VoiceInputProps> = ({ isVisible, onClose, onSubmit }) => {
+// モックのグループデータ（実際の実装では親コンポーネントからpropsで渡すか、APIから取得）
+const mockGroups = {
+  'g1': { name: '会社の仲間', members: 5, color: '#6c5ce7', image: 'https://randomuser.me/api/portraits/groups/1.jpg' },
+  'g2': { name: '大学の友達', members: 4, color: '#0984e3', image: 'https://randomuser.me/api/portraits/groups/2.jpg' },
+  'g3': { name: '家族', members: 3, color: '#00b894', image: 'https://randomuser.me/api/portraits/groups/3.jpg' },
+  'g4': { name: 'サークル', members: 8, color: '#fdcb6e', image: 'https://randomuser.me/api/portraits/groups/4.jpg' },
+};
+
+const VoiceInput: React.FC<VoiceInputProps> = ({ isVisible, onClose, onSubmit, groupId }) => {
   const slideAnim = useRef(new Animated.Value(400)).current;
   const overlayOpacity = useRef(new Animated.Value(0)).current;
   const [text, setText] = useState('');
@@ -52,66 +62,61 @@ const VoiceInput: React.FC<VoiceInputProps> = ({ isVisible, onClose, onSubmit })
   // AppContextから状態とセッター関数を取得
   const { setVoiceText, setVoiceTags, setVoiceTagDescriptions } = useContext(AppContext);
 
-  // マイク権限を取得する
-  useEffect(() => {
-    (async () => {
-      try {
-        console.log('マイク権限をリクエスト中...');
-        const { granted } = await Audio.requestPermissionsAsync();
-        console.log('マイク権限の結果:', granted);
-        setHasAudioPermission(granted);
-      } catch (error) {
-        console.error('マイク権限の取得に失敗しました', error);
-      }
-    })();
-  }, []);
+  // 選択されているグループ情報を取得
+  const selectedGroup = groupId && mockGroups[groupId] ? mockGroups[groupId] : null;
 
-  // APIキーをストレージから読み込む（環境変数が設定されていない場合のみ）
+  // グループモードからの自動録音開始
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    const loadApiKey = async () => {
-      if (OPENAI_API_KEY) {
-        setApiKey(OPENAI_API_KEY);
-        setShowApiKeyInput(false);
-        return;
+    let initTimer: NodeJS.Timeout;
+    
+    // グループモードかつ画面が表示された場合は自動的に録音を開始
+    if (isVisible && selectedGroup && !isRecording && !isProcessing) {
+      console.log('グループモード：音声入力画面が表示されました。録音準備中...');
+      
+      // まず確実に既存の録音をクリーンアップ
+      if (recording) {
+        (async () => {
+          try {
+            console.log('既存の録音を停止してクリーンアップします');
+            await recording.stopAndUnloadAsync();
+            setRecording(null);
+          } catch (error) {
+            console.error('録音クリーンアップ中にエラー:', error);
+            setRecording(null);
+          } finally {
+            // オーディオモードをリセット
+            try {
+              await Audio.setAudioModeAsync({
+                allowsRecordingIOS: false,
+                playsInSilentModeIOS: false,
+              });
+            } catch (audioError) {
+              console.error('オーディオモードリセット中にエラー:', audioError);
+            }
+          }
+        })();
       }
       
-      try {
-        const storedApiKey = await AsyncStorage.getItem(API_KEY_STORAGE_KEY);
-        if (storedApiKey) {
-          setApiKey(storedApiKey);
-          setShowApiKeyInput(false);
-        } else {
-          // キーが保存されていない場合は入力フォームを表示
-          setShowApiKeyInput(true);
+      // 少し遅延させてから録音開始
+      initTimer = setTimeout(() => {
+        console.log('遅延後に録音開始を試みます');
+        if (!isRecording && !recording) {
+          startRecording();
         }
-      } catch (error) {
-        console.error('APIキーの読み込みに失敗しました', error);
-      }
+      }, 1000);
+    }
+    
+    return () => {
+      if (initTimer) clearTimeout(initTimer);
     };
-    
-    loadApiKey();
-  }, []);
+  }, [isVisible, selectedGroup]);
 
-  // APIキーを保存する
-  const saveApiKey = async () => {
-    if (!apiKeyInputValue.trim()) {
-      Alert.alert('エラー', 'APIキーを入力してください');
-      return;
-    }
-    
-    try {
-      await AsyncStorage.setItem(API_KEY_STORAGE_KEY, apiKeyInputValue);
-      setApiKey(apiKeyInputValue);
-      setApiKeyInputValue('');
-      setShowApiKeyInput(false);
-    } catch (error) {
-      console.error('APIキーの保存に失敗しました', error);
-      Alert.alert('エラー', 'APIキーの保存に失敗しました');
-    }
-  };
-
+  // isVisibleが切り替わるときの処理
   useEffect(() => {
+    // モーダルが表示された時の処理
     if (isVisible) {
+      console.log('音声入力画面が表示されました');
       // 表示するときのアニメーション
       Animated.parallel([
         Animated.timing(slideAnim, {
@@ -127,6 +132,31 @@ const VoiceInput: React.FC<VoiceInputProps> = ({ isVisible, onClose, onSubmit })
         })
       ]).start();
     } else {
+      console.log('音声入力画面が非表示になります');
+      // 非表示になる場合、録音を確実に停止
+      if (recording) {
+        (async () => {
+          try {
+            console.log('非表示時に録音を停止します');
+            await recording.stopAndUnloadAsync();
+            setRecording(null);
+            // 録音状態をリセット
+            setIsRecording(false);
+            setIsProcessing(false);
+            
+            // オーディオモードをリセット
+            await Audio.setAudioModeAsync({
+              allowsRecordingIOS: false,
+              playsInSilentModeIOS: false,
+            });
+          } catch (error) {
+            console.error('録音停止中にエラー:', error);
+            setRecording(null);
+            setIsRecording(false);
+          }
+        })();
+      }
+      
       // 非表示にするときのアニメーション
       Animated.parallel([
         Animated.timing(slideAnim, {
@@ -144,8 +174,64 @@ const VoiceInput: React.FC<VoiceInputProps> = ({ isVisible, onClose, onSubmit })
     }
   }, [isVisible]);
 
+  // マイク権限を取得する
+  useEffect(() => {
+    let isMounted = true;
+    
+    (async () => {
+      try {
+        console.log('マイク権限をリクエスト中...');
+        const { granted } = await Audio.requestPermissionsAsync();
+        console.log('マイク権限の結果:', granted);
+        if (isMounted) {
+          setHasAudioPermission(granted);
+        }
+      } catch (error) {
+        console.error('マイク権限の取得に失敗しました', error);
+      }
+    })();
+    
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // コンポーネントがアンマウントされる際に録音リソースを完全にクリーンアップ
+  useEffect(() => {
+    return () => {
+      console.log('VoiceInputコンポーネントがアンマウントされます。リソースをクリーンアップします。');
+      if (recording) {
+        (async () => {
+          try {
+            await recording.stopAndUnloadAsync();
+          } catch (error) {
+            console.error('アンマウント時の録音停止エラー:', error);
+          }
+          
+          try {
+            await Audio.setAudioModeAsync({
+              allowsRecordingIOS: false,
+              playsInSilentModeIOS: false,
+            });
+          } catch (audioError) {
+            console.error('アンマウント時のオーディオモードリセットエラー:', audioError);
+          }
+        })();
+      }
+    };
+  }, []);
+
   // 録音の開始
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const startRecording = async () => {
+    console.log('録音開始関数が呼び出されました');
+    
+    // 既に録音中なら何もしない
+    if (isRecording || recording) {
+      console.log('既に録音中です。録音を開始できません。');
+      return;
+    }
+
     // APIキーがない場合は録音を開始しない
     if (!apiKey) {
       setShowApiKeyInput(true);
@@ -172,12 +258,39 @@ const VoiceInput: React.FC<VoiceInputProps> = ({ isVisible, onClose, onSubmit })
     }
 
     try {
+      // 録音前の安全対策：既存の録音オブジェクトが残っていないか確認
+      if (recording) {
+        console.log('既存の録音オブジェクトを解放します');
+        try {
+          await recording.stopAndUnloadAsync();
+        } catch (existingRecordingError) {
+          console.error('既存録音の解放中にエラー:', existingRecordingError);
+        } finally {
+          setRecording(null);
+          // 確実にオーディオモードをリセット
+          try {
+            await Audio.setAudioModeAsync({
+              allowsRecordingIOS: false,
+              playsInSilentModeIOS: false,
+            });
+          } catch (resetError) {
+            console.error('オーディオモードリセットエラー:', resetError);
+          }
+          
+          // 少し待機してから再度録音を試みる
+          await new Promise(resolve => setTimeout(resolve, 300));
+        }
+      }
+
       // 録音のためのオーディオモードの設定
       console.log('オーディオモードを設定中...');
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
       });
+      
+      // 少し待機してからRecordingオブジェクトを作成
+      await new Promise(resolve => setTimeout(resolve, 200));
 
       // 録音オプションの設定
       const recordingOptions: Audio.RecordingOptions = {
@@ -208,18 +321,33 @@ const VoiceInput: React.FC<VoiceInputProps> = ({ isVisible, onClose, onSubmit })
 
       // 録音の開始
       console.log('録音を開始します...');
-      const { recording } = await Audio.Recording.createAsync(recordingOptions);
+      const { recording: newRecording } = await Audio.Recording.createAsync(recordingOptions);
       console.log('録音が開始されました');
-      setRecording(recording);
+      setRecording(newRecording);
       setIsRecording(true);
       setText(''); // 既存のテキストをクリア
     } catch (error) {
       console.error('録音の開始に失敗しました', error);
+      // エラーが発生した場合、録音状態をリセット
+      setIsRecording(false);
+      setRecording(null);
+      
+      // オーディオモードをリセット
+      try {
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: false,
+          playsInSilentModeIOS: false,
+        });
+      } catch (audioError) {
+        console.error('エラー後のオーディオモードリセットに失敗:', audioError);
+      }
+      
       Alert.alert('エラー', '録音の開始に失敗しました');
     }
   };
 
   // 録音の停止とWhisper APIへの送信
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const stopRecording = async () => {
     if (!recording) {
       console.log('録音オブジェクトがありません');
@@ -326,16 +454,26 @@ const VoiceInput: React.FC<VoiceInputProps> = ({ isVisible, onClose, onSubmit })
     try {
       console.log('テキストをタグに分析します:', inputText);
       
+      // グループ情報を含めたプロンプト作成
+      let promptContent = "あなたは飲食店探しを助けるAIアシスタントです。ユーザーの入力から飲食店検索に役立つキーワードを抽出し、必ず3つ以上のタグに変換してください。";
+      
+      // グループモードの場合はプロンプトに情報を追加
+      if (selectedGroup) {
+        promptContent += `ユーザーは「${selectedGroup.name}」というグループ（${selectedGroup.members}人）で飲食店を探しています。グループでの食事に適したタグも考慮してください。`;
+      }
+      
+      promptContent += "どんな入力でも必ず3つ以上のタグを作成してください。内容がシンプルで飲食店に直接関連しない場合でも、可能性のある関連タグを作成してください。各タグには短い説明も付けてください。結果はJSON形式で返してください。タグの例:「寒い」→「鍋」「あったかい料理」「焼肉」";
+      
       const prompt = {
         model: "gpt-4-turbo",
         messages: [
           {
             role: "system",
-            content: "あなたは飲食店探しを助けるAIアシスタントです。ユーザーの入力から飲食店検索に役立つキーワードを抽出し、必ず3つ以上のタグに変換してください。どんな入力でも必ず3つ以上のタグを作成してください。内容がシンプルで飲食店に直接関連しない場合でも、可能性のある関連タグを作成してください。各タグには短い説明も付けてください。結果はJSON形式で返してください。タグの例:「寒い」→「鍋」「あったかい料理」「焼肉」"
+            content: promptContent
           },
           {
             role: "user",
-            content: `あなたは飲食店探しを助けるAIアシスタントです。ユーザーの入力から飲食店検索に役立つキーワードを抽出し、必ず3つ以上のタグに変換してください。どんな入力でも必ず3つ以上のタグを作成してください。内容がシンプルで飲食店に直接関連しない場合でも、可能性のある関連タグを作成してください。各タグには短い説明も付けてください。結果はJSON形式で返してください。タグの例:「寒い」→「鍋」「あったかい料理」「焼肉」：「${inputText}」`
+            content: `あなたは飲食店探しを助けるAIアシスタントです。ユーザーの入力から飲食店検索に役立つキーワードを抽出し、必ず3つ以上のタグに変換してください。${selectedGroup ? `ユーザーは「${selectedGroup.name}」というグループ（${selectedGroup.members}人）で飲食店を探しています。` : ''}どんな入力でも必ず3つ以上のタグを作成してください。内容がシンプルで飲食店に直接関連しない場合でも、可能性のある関連タグを作成してください。各タグには短い説明も付けてください。結果はJSON形式で返してください。タグの例:「寒い」→「鍋」「あったかい料理」「焼肉」：「${inputText}」`
           }
         ],
         response_format: { type: "json_object" }
@@ -592,6 +730,23 @@ const VoiceInput: React.FC<VoiceInputProps> = ({ isVisible, onClose, onSubmit })
 
   // モーダルを閉じる際の処理を改善
   const handleClose = () => {
+    // 録音中なら録音を停止
+    if (recording) {
+      try {
+        (async () => {
+          await recording.stopAndUnloadAsync();
+          setRecording(null);
+          await Audio.setAudioModeAsync({
+            allowsRecordingIOS: false,
+            playsInSilentModeIOS: false,
+          });
+        })();
+      } catch (error) {
+        console.error('モーダルを閉じる際の録音停止でエラーが発生しました', error);
+        setRecording(null);
+      }
+    }
+
     // モーダルを閉じる前に状態をリセット
     if (showRestaurantSearch) {
       setShowRestaurantSearch(false);
@@ -618,6 +773,8 @@ const VoiceInput: React.FC<VoiceInputProps> = ({ isVisible, onClose, onSubmit })
       setText('');
       setTags([]);
       setShowAnalysisResult(false);
+      setIsRecording(false);
+      setIsProcessing(false);
     });
   };
 
@@ -642,6 +799,61 @@ const VoiceInput: React.FC<VoiceInputProps> = ({ isVisible, onClose, onSubmit })
       transform: [{ translateY: slideAnim }] 
     }
   ];
+
+  // タイトルに表示するテキストを決定
+  const getTitleText = () => {
+    if (showRestaurantSearch) {
+      return 'おすすめの店舗';
+    } else if (selectedGroup) {
+      return `${selectedGroup.name}でハモる`;
+    } else {
+      return 'ハモる';
+    }
+  };
+
+  // APIキーをストレージから読み込む（環境変数が設定されていない場合のみ）
+  useEffect(() => {
+    const loadApiKey = async () => {
+      if (OPENAI_API_KEY) {
+        setApiKey(OPENAI_API_KEY);
+        setShowApiKeyInput(false);
+        return;
+      }
+      
+      try {
+        const storedApiKey = await AsyncStorage.getItem(API_KEY_STORAGE_KEY);
+        if (storedApiKey) {
+          setApiKey(storedApiKey);
+          setShowApiKeyInput(false);
+        } else {
+          // キーが保存されていない場合は入力フォームを表示
+          setShowApiKeyInput(true);
+        }
+      } catch (error) {
+        console.error('APIキーの読み込みに失敗しました', error);
+      }
+    };
+    
+    loadApiKey();
+  }, []);
+
+  // APIキーを保存する
+  const saveApiKey = async () => {
+    if (!apiKeyInputValue.trim()) {
+      Alert.alert('エラー', 'APIキーを入力してください');
+      return;
+    }
+    
+    try {
+      await AsyncStorage.setItem(API_KEY_STORAGE_KEY, apiKeyInputValue);
+      setApiKey(apiKeyInputValue);
+      setApiKeyInputValue('');
+      setShowApiKeyInput(false);
+    } catch (error) {
+      console.error('APIキーの保存に失敗しました', error);
+      Alert.alert('エラー', 'APIキーの保存に失敗しました');
+    }
+  };
 
   return (
     <>
@@ -668,7 +880,7 @@ const VoiceInput: React.FC<VoiceInputProps> = ({ isVisible, onClose, onSubmit })
             
             <View style={styles.header}>
               <Text style={styles.title}>
-                {showRestaurantSearch ? 'おすすめの店舗' : 'ハモる'}
+                {getTitleText()}
               </Text>
               <Pressable style={styles.closeButton} onPress={handleClose}>
                 <Ionicons name="close" size={24} color="#333" />
@@ -697,11 +909,26 @@ const VoiceInput: React.FC<VoiceInputProps> = ({ isVisible, onClose, onSubmit })
                 <RestaurantSearchResults 
                   tags={tags.map(tag => tag.label)} 
                   onClose={handleCloseRestaurantSearch} 
+                  groupId={groupId}
                 />
               </View>
             ) : (
               <>
-                <View style={styles.inputContainer}>
+                {/* グループ情報表示 */}
+                {selectedGroup && (
+                  <View style={styles.groupInfoContainer}>
+                    <Image 
+                      source={{ uri: selectedGroup.image }} 
+                      style={[styles.groupIconCircle, { borderColor: selectedGroup.color }]}
+                    />
+                    <View style={styles.groupInfoText}>
+                      <Text style={styles.groupName}>{selectedGroup.name}</Text>
+                      <Text style={styles.groupMembers}>{selectedGroup.members}人と一緒にハモる</Text>
+                    </View>
+                  </View>
+                )}
+                
+                <View style={[styles.inputContainer, selectedGroup && styles.inputContainerWithGroup]}>
                   {isProcessing ? (
                     <View style={styles.processingContainer}>
                       <ActivityIndicator size="large" color="#6c5ce7" />
@@ -714,29 +941,52 @@ const VoiceInput: React.FC<VoiceInputProps> = ({ isVisible, onClose, onSubmit })
                     </View>
                   ) : showAnalysisResult ? (
                     <ScrollView style={styles.analysisResultContainer}>
+                      {selectedGroup && (
+                        <View style={styles.groupResultInfo}>
+                          <Text style={styles.groupTagsNote}>
+                            {selectedGroup.name}のメンバー({selectedGroup.members}人)に合わせたタグを生成しました
+                          </Text>
+                        </View>
+                      )}
+                      
                       <Text style={styles.analysisTitle}>テキスト</Text>
                       <Text style={styles.inputText}>「{text}」</Text>
                       
                       <Text style={styles.tagsTitle}>タグ</Text>
                       <View style={styles.tagsList}>
                         {tags.map((tag, index) => (
-                          <View key={index} style={styles.tagItem}>
+                          <View 
+                            key={index} 
+                            style={[
+                              styles.tagItem, 
+                              // グループが選択されている場合はそのグループの色を使用
+                              selectedGroup ? {backgroundColor: selectedGroup.color} : null
+                            ]}
+                          >
                             <Text style={styles.tagLabel}>{tag.label}</Text>
                           </View>
                         ))}
                       </View>
                       
                       <View style={styles.resetContainer}>
-                        <Pressable style={styles.resetButton} onPress={handleResetAnalysis}>
-                          <Text style={styles.resetButtonText}>やり直す</Text>
+                        <Pressable style={[
+                          styles.resetButton, 
+                          selectedGroup ? {borderColor: selectedGroup.color} : null
+                        ]} onPress={handleResetAnalysis}>
+                          <Text style={[
+                            styles.resetButtonText,
+                            selectedGroup ? {color: selectedGroup.color} : null
+                          ]}>やり直す</Text>
                         </Pressable>
                       </View>
                     </ScrollView>
                   ) : (
                     <TextInput
                       style={styles.input}
-                      placeholder="音声入力結果"
-                      placeholderTextColor="#999"
+                      placeholder={selectedGroup && isRecording 
+                        ? "叫べ!" 
+                        : "音声入力結果"}
+                      placeholderTextColor={selectedGroup && isRecording ? selectedGroup.color : "#999"}
                       multiline
                       value={text}
                       onChangeText={setText}
@@ -1029,6 +1279,47 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.8)',
     fontSize: 12,
     marginTop: 2,
+  },
+  groupInfoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  groupIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#fff',
+    borderWidth: 2,
+    marginRight: 10,
+  },
+  groupInitial: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: 'white',
+  },
+  groupInfoText: {
+    marginLeft: 10,
+  },
+  groupName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  groupMembers: {
+    fontSize: 14,
+    color: '#666',
+  },
+  inputContainerWithGroup: {
+    padding: 20,
+  },
+  groupResultInfo: {
+    marginBottom: 10,
+  },
+  groupTagsNote: {
+    color: '#666',
+    fontSize: 14,
+    textAlign: 'center',
   },
 });
 

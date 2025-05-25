@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useRef, useContext } from 'react';
 import { BlurView } from 'expo-blur';
 import { AppContext } from '@/app/_layout';
+import { useAuth } from '@/context/AuthContext';
 
 interface BottomNavProps {
   onHomePress?: () => void;
@@ -17,7 +18,13 @@ const BottomNav: React.FC<BottomNavProps> = ({
   onProfilePress = () => router.push('/(tabs)/profile')
 }) => {
   const translateYAnim = useRef(new Animated.Value(50)).current;
-  const { setVoiceInputVisible } = useContext(AppContext);
+  const { setModeSelectorVisible } = useContext(AppContext);
+  const { user } = useAuth();
+  
+  // ユーザー情報の取得
+  const isAnonymous = user?.isAnonymous || false;
+  const defaultProfileImage = 'https://randomuser.me/api/portraits/lego/1.jpg';
+  const profileImageUrl = user?.photoURL || defaultProfileImage;
 
   useEffect(() => {
     Animated.timing(translateYAnim, {
@@ -29,7 +36,7 @@ const BottomNav: React.FC<BottomNavProps> = ({
   }, []);
 
   const handleHamoriPress = () => {
-    setVoiceInputVisible(true);
+    setModeSelectorVisible(true);
   };
 
   return (
@@ -63,9 +70,15 @@ const BottomNav: React.FC<BottomNavProps> = ({
       
       <Pressable style={styles.profileBtn} onPress={onProfilePress}>
         <Image 
-          source={{ uri: 'https://randomuser.me/api/portraits/men/32.jpg' }} 
-          style={styles.userIcon}
+          source={{ uri: profileImageUrl }} 
+          style={[
+            styles.userIcon,
+            isAnonymous && styles.anonymousUserIcon
+          ]}
         />
+        {isAnonymous && (
+          <View style={styles.anonymousBadge} />
+        )}
       </Pressable>
     </BlurView>
   );
@@ -165,6 +178,23 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  anonymousUserIcon: {
+    borderWidth: 2,
+    borderColor: '#f0f0f0',
+  },
+  anonymousBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#f39c12',
+    borderWidth: 2,
+    borderColor: '#fff',
   }
 });
 

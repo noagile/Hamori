@@ -8,6 +8,7 @@ import 'react-native-reanimated';
 import { View, StyleSheet } from 'react-native';
 
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { AuthProvider } from '@/context/AuthContext';
 
 // ボイスインプットの状態を管理するためのコンテキスト
 export const AppContext = createContext<{
@@ -21,6 +22,14 @@ export const AppContext = createContext<{
   setVoiceTagDescriptions: (descriptions: Record<string, string>) => void;
   restaurantSearchVisible: boolean;
   setRestaurantSearchVisible: (visible: boolean) => void;
+  modeSelectorVisible: boolean;
+  setModeSelectorVisible: (visible: boolean) => void;
+  activeGroupId: string | null;
+  setActiveGroupId: (groupId: string | null) => void;
+  activeGroupInfo: { name: string; members: number; color: string; image: string } | null;
+  setActiveGroupInfo: (info: { name: string; members: number; color: string; image: string } | null) => void;
+  appMode: string;
+  setAppMode: (mode: string) => void;
 }>({
   voiceInputVisible: false,
   setVoiceInputVisible: () => {},
@@ -32,12 +41,21 @@ export const AppContext = createContext<{
   setVoiceTagDescriptions: () => {},
   restaurantSearchVisible: false,
   setRestaurantSearchVisible: () => {},
+  modeSelectorVisible: false,
+  setModeSelectorVisible: () => {},
+  activeGroupId: null,
+  setActiveGroupId: () => {},
+  activeGroupInfo: null,
+  setActiveGroupInfo: () => {},
+  appMode: 'normal',
+  setAppMode: () => {},
 });
 
 // フォントの読み込みが終わるまでSplashScreenを表示
 SplashScreen.preventAutoHideAsync();
 
-export default function RootLayout() {
+// 実際のレイアウトコンポーネント
+function RootLayoutNav() {
   const colorScheme = useColorScheme();
   const [loaded, error] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
@@ -49,6 +67,10 @@ export default function RootLayout() {
   const [voiceTags, setVoiceTags] = useState<string[]>([]);
   const [voiceTagDescriptions, setVoiceTagDescriptions] = useState<Record<string, string>>({});
   const [restaurantSearchVisible, setRestaurantSearchVisible] = useState(false);
+  const [modeSelectorVisible, setModeSelectorVisible] = useState(false);
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
+  const [activeGroupInfo, setActiveGroupInfo] = useState<{ name: string; members: number; color: string; image: string } | null>(null);
+  const [appMode, setAppMode] = useState<string>('normal');
 
   useEffect(() => {
     if (error) console.warn(error);
@@ -75,7 +97,15 @@ export default function RootLayout() {
       voiceTagDescriptions,
       setVoiceTagDescriptions,
       restaurantSearchVisible,
-      setRestaurantSearchVisible
+      setRestaurantSearchVisible,
+      modeSelectorVisible,
+      setModeSelectorVisible,
+      activeGroupId,
+      setActiveGroupId,
+      activeGroupInfo,
+      setActiveGroupInfo,
+      appMode,
+      setAppMode
     }}>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <View style={styles.container}>
@@ -89,6 +119,15 @@ export default function RootLayout() {
         </View>
       </ThemeProvider>
     </AppContext.Provider>
+  );
+}
+
+// ルート要素としてAuthProviderを使用
+export default function RootLayout() {
+  return (
+    <AuthProvider>
+      <RootLayoutNav />
+    </AuthProvider>
   );
 }
 

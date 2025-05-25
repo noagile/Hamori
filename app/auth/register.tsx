@@ -1,8 +1,19 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { SafeAreaView, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import RegisterForm from '@/components/auth/RegisterForm';
+import { useAuth } from '@/context/AuthContext';
+import { router } from 'expo-router';
 
 export default function RegisterScreen() {
+  const { user } = useAuth();
+  
+  // ユーザーがすでにログインしている場合、タブ画面にリダイレクト
+  useEffect(() => {
+    if (user) {
+      router.replace('/(tabs)');
+    }
+  }, [user]);
+  
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView

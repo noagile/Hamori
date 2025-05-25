@@ -1,25 +1,64 @@
 import React, { useState } from 'react';
-import { View, TextInput, StyleSheet, Text, TouchableOpacity, Pressable } from 'react-native';
+import { View, TextInput, StyleSheet, Text, TouchableOpacity, Pressable, Alert, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '@/context/AuthContext';
 
 const RegisterForm = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  
+  const { register, loginAnonymously, error } = useAuth();
 
-  const handleRegister = () => {
-    // 新規登録処理を実装
-    console.log('新規登録処理', { email, password, confirmPassword });
-    // 成功したらタブ画面に遷移
-    router.replace('/(tabs)');
+  const handleRegister = async () => {
+    // 入力チェック
+    if (!email || !password || !confirmPassword) {
+      Alert.alert('エラー', '全ての項目を入力してください');
+      return;
+    }
+    
+    if (password !== confirmPassword) {
+      Alert.alert('エラー', 'パスワードと確認用パスワードが一致しません');
+      return;
+    }
+    
+    if (password.length < 8) {
+      Alert.alert('エラー', 'パスワードは8文字以上で設定してください');
+      return;
+    }
+    
+    setIsLoading(true);
+    try {
+      // Firebase Authで新規ユーザー登録
+      // displayNameが空の場合は、メールアドレスの@より前の部分を使用
+      const userDisplayName = displayName || email.split('@')[0];
+      await register(email, password, userDisplayName);
+      router.replace('/(tabs)');
+    } catch (error: any) {
+      console.error('登録エラー:', error);
+      Alert.alert('登録エラー', error.message || '登録に失敗しました。');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleGuestLogin = () => {
-    // ゲストとしてログイン（タブ画面に遷移）
-    router.replace('/(tabs)');
+  const handleGuestLogin = async () => {
+    setIsLoading(true);
+    try {
+      // Firebase匿名認証でログイン
+      await loginAnonymously();
+      router.replace('/(tabs)');
+    } catch (error: any) {
+      console.error('匿名ログインエラー:', error);
+      Alert.alert('匿名ログインエラー', error.message || '匿名ログインに失敗しました。しばらくしてから再試行してください。');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const navigateToLogin = () => {
@@ -44,6 +83,19 @@ const RegisterForm = () => {
           keyboardType="email-address"
           autoCapitalize="none"
           placeholderTextColor="#999"
+          editable={!isLoading}
+        />
+      </View>
+
+      <View style={styles.inputContainer}>
+        <TextInput
+          style={styles.input}
+          placeholder="表示名（任意）"
+          value={displayName}
+          onChangeText={setDisplayName}
+          autoCapitalize="none"
+          placeholderTextColor="#999"
+          editable={!isLoading}
         />
       </View>
 
@@ -55,10 +107,12 @@ const RegisterForm = () => {
           onChangeText={setPassword}
           secureTextEntry={!showPassword}
           placeholderTextColor="#999"
+          editable={!isLoading}
         />
         <Pressable
           style={styles.eyeIcon}
           onPress={() => setShowPassword(!showPassword)}
+          disabled={isLoading}
         >
           <Ionicons
             name={showPassword ? 'eye-off-outline' : 'eye-outline'}
@@ -76,10 +130,12 @@ const RegisterForm = () => {
           onChangeText={setConfirmPassword}
           secureTextEntry={!showConfirmPassword}
           placeholderTextColor="#999"
+          editable={!isLoading}
         />
         <Pressable
           style={styles.eyeIcon}
           onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+          disabled={isLoading}
         >
           <Ionicons
             name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
@@ -90,8 +146,16 @@ const RegisterForm = () => {
       </View>
 
       <View style={styles.buttonContainer}>
-        <TouchableOpacity style={styles.button} onPress={handleRegister}>
-          <Text style={styles.buttonText}>新規登録</Text>
+        <TouchableOpacity 
+          style={styles.button} 
+          onPress={handleRegister}
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <ActivityIndicator color="#fff" size="small" />
+          ) : (
+            <Text style={styles.buttonText}>新規登録</Text>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -102,17 +166,29 @@ const RegisterForm = () => {
       </View>
 
       <View style={styles.buttonContainer}>
-        <TouchableOpacity style={styles.guestButton} onPress={handleGuestLogin}>
-          <Text style={styles.guestButtonText}>ゲストとして始める</Text>
+        <TouchableOpacity 
+          style={styles.guestButton} 
+          onPress={handleGuestLogin}
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <ActivityIndicator color="#666" size="small" />
+          ) : (
+            <Text style={styles.guestButtonText}>ゲストとして始める</Text>
+          )}
         </TouchableOpacity>
       </View>
 
       <View style={styles.footer}>
         <Text style={styles.footerText}>アカウントをお持ちの方は</Text>
-        <TouchableOpacity onPress={navigateToLogin}>
+        <TouchableOpacity onPress={navigateToLogin} disabled={isLoading}>
           <Text style={styles.footerLink}>こちら</Text>
         </TouchableOpacity>
       </View>
+      
+      {error && (
+        <Text style={styles.errorText}>{error}</Text>
+      )}
     </View>
   );
 };
@@ -224,9 +300,14 @@ const styles = StyleSheet.create({
   },
   footerLink: {
     color: '#6c5ce7',
-    marginLeft: 5,
-    textDecorationLine: 'underline',
-    fontWeight: '500',
+    fontWeight: 'bold',
+    marginLeft: 4,
+    fontSize: 14,
+  },
+  errorText: {
+    color: '#e74c3c',
+    textAlign: 'center',
+    marginTop: 20,
     fontSize: 14,
   },
 });
