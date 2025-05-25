@@ -3,15 +3,26 @@ import { initializeApp } from 'firebase/app';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as firebaseAuth from 'firebase/auth';
 import * as firebaseFirestore from 'firebase/firestore';
+import Constants from 'expo-constants';
+
+// app.config.jsから設定を取得
+const {
+  firebaseApiKey,
+  firebaseAuthDomain,
+  firebaseProjectId,
+  firebaseStorageBucket,
+  firebaseMessagingSenderId,
+  firebaseAppId
+} = Constants.expoConfig?.extra || {};
 
 // Firebase構成
 const firebaseConfig = {
-  apiKey: "AIzaSyBWnboZ-O4csFJgu7Y64tZPhMuR_K73-oE",
-  authDomain: "hamori-c0c72.firebaseapp.com",
-  projectId: "hamori-c0c72",
-  storageBucket: "hamori-c0c72.firebasestorage.app",
-  messagingSenderId: "264717257563",
-  appId: "1:264717257563:web:663f405c5b11ddee35287e"
+  apiKey: firebaseApiKey,
+  authDomain: firebaseAuthDomain,
+  projectId: firebaseProjectId,
+  storageBucket: firebaseStorageBucket,
+  messagingSenderId: firebaseMessagingSenderId,
+  appId: firebaseAppId
 };
 
 // Firebaseアプリの初期化

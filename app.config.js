@@ -39,12 +39,12 @@ export default {
     openaiApiKey: process.env.OPENAI_API_KEY,
     googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY,
     // Firebase設定
-    firebaseApiKey: process.env.FIREBASE_API_KEY || "AIzaSyA-OT-uMySn8gUHN5hIKUB8xm7IxqE_bgI",
-    firebaseAuthDomain: process.env.FIREBASE_AUTH_DOMAIN || "hamori37.firebaseapp.com",
-    firebaseProjectId: process.env.FIREBASE_PROJECT_ID || "hamori37",
-    firebaseStorageBucket: process.env.FIREBASE_STORAGE_BUCKET || "hamori37.firebasestorage.app",
-    firebaseMessagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || "770550316371",
-    firebaseAppId: process.env.FIREBASE_APP_ID || "1:770550316371:web:9340ff6c519e7e212c75a6",
+    firebaseApiKey: process.env.FIREBASE_API_KEY,
+    firebaseAuthDomain: process.env.FIREBASE_AUTH_DOMAIN,
+    firebaseProjectId: process.env.FIREBASE_PROJECT_ID,
+    firebaseStorageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+    firebaseMessagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
+    firebaseAppId: process.env.FIREBASE_APP_ID,
     eas: {
       projectId: "hamori-37"
     }
