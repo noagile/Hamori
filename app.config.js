@@ -19,9 +19,11 @@ export default {
   ios: {
     supportsTablet: true,
     infoPlist: {
-      NSMicrophoneUsageDescription: "この機能は音声を文字に変換するために必要です。"
+      NSMicrophoneUsageDescription: "この機能は音声を文字に変換するために必要です。",
+      ITSAppUsesNonExemptEncryption: false
     },
-    bundleIdentifier: "com.hamorinew.app"
+    bundleIdentifier: "com.hamorinew.app",
+    googleServicesFile: "./firebase/ios/GoogleService-Info.plist"
   },
   android: {
     adaptiveIcon: {
@@ -46,7 +48,7 @@ export default {
     firebaseMessagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
     firebaseAppId: process.env.FIREBASE_APP_ID,
     eas: {
-      projectId: "hamori-37"
+      projectId: "b388c896-884f-4c37-9f17-6180e8c73260"
     }
   },
   plugins: [
@@ -62,6 +64,15 @@ export default {
         "ios": {
           "useFrameworks": "static"
         }
+      }
+    ],
+    [
+      "@react-native-firebase/app",
+      {
+        "ios": {
+          "googleServicesFile": "./firebase/ios/GoogleService-Info.plist"
+        },
+        "android": false
       }
     ]
   ]

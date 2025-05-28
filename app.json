@@ -15,7 +15,8 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.hamorinew.app"
+      "bundleIdentifier": "com.hamorinew.app",
+      "developmentClient": true
     },
     "android": {
       "adaptiveIcon": {
@@ -29,6 +30,8 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      "@react-native-firebase/app",
+      "@react-native-firebase/auth",
       [
         "expo-build-properties",
         {
